@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { StatsCard } from "@/components/StatsCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { QuickActions } from "@/components/QuickActions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { 
   Box, 
   Wrench, 
@@ -15,6 +17,7 @@ import {
   Activity,
   ArrowRight,
   Sparkles,
+  Search,
 } from "lucide-react";
 import { 
   AreaChart, 
@@ -49,38 +52,127 @@ const statusDistribution = [
 export default function Dashboard() {
   const { stats, requests, equipment } = useApp();
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState("");
 
   const recentRequests = requests.slice(0, 4);
   const criticalEquipment = equipment.filter(eq => eq.openRequestsCount > 0).slice(0, 4);
 
+  // Search results logic
+  const searchResultsEquipment = searchQuery ? equipment.filter(eq => 
+    eq.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    eq.serialNumber.toLowerCase().includes(searchQuery.toLowerCase())
+  ).slice(0, 5) : [];
+
+  const searchResultsRequests = searchQuery ? requests.filter(r => 
+    r.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    r.equipmentName.toLowerCase().includes(searchQuery.toLowerCase())
+  ).slice(0, 5) : [];
+
   return (
     <div className="space-y-8">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Dashboard</h1>
-            <Sparkles className="h-5 w-5 text-accent animate-float" />
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Dashboard</h1>
+              <Sparkles className="h-5 w-5 text-accent animate-float" />
+            </div>
+            <p className="text-muted-foreground text-sm sm:text-base">
+              Monitor your equipment and maintenance operations
+            </p>
           </div>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            Monitor your equipment and maintenance operations
-          </p>
+          <div className="flex items-center gap-2 text-sm bg-card/80 backdrop-blur px-4 py-2 rounded-full border border-border/50 shadow-sm">
+            <div className="relative">
+              <Activity className="h-4 w-4 text-status-success" />
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-status-success rounded-full animate-pulse" />
+            </div>
+            <span className="text-muted-foreground hidden sm:inline">System: </span>
+            <StatusBadge variant="success" size="sm">Operational</StatusBadge>
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-sm bg-card/80 backdrop-blur px-4 py-2 rounded-full border border-border/50 shadow-sm">
-          <div className="relative">
-            <Activity className="h-4 w-4 text-status-success" />
-            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-status-success rounded-full animate-pulse" />
-          </div>
-          <span className="text-muted-foreground hidden sm:inline">System: </span>
-          <StatusBadge variant="success" size="sm">Operational</StatusBadge>
+
+        {/* Search Bar */}
+        <div className="relative max-w-lg w-full mx-auto sm:mx-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+                placeholder="Search equipment by serial #, name, or request subject..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 bg-background/50 backdrop-blur border-primary/20 focus:border-primary/50 transition-colors"
+            />
         </div>
       </div>
 
+      {/* Search Results Overlay/Section */}
+      {searchQuery && (
+        <section className="space-y-4 animate-in fade-in slide-in-from-top-4">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                Search Results ({searchResultsEquipment.length + searchResultsRequests.length} found)
+            </h2>
+            <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+                {/* Equipment Results */}
+                {searchResultsEquipment.length > 0 && (
+                    <Card className="glass-card">
+                        <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Box className="h-4 w-4"/> Equipment</CardTitle></CardHeader>
+                        <CardContent>
+                            <div className="space-y-2">
+                                {searchResultsEquipment.map(eq => (
+                                    <div 
+                                        key={eq.id} 
+                                        onClick={() => navigate(`/equipment`)} 
+                                        className="flex justify-between items-center p-3 hover:bg-secondary/50 rounded-lg cursor-pointer transition-colors border border-transparent hover:border-border"
+                                    >
+                                        <div>
+                                            <p className="font-medium text-sm">{eq.name}</p>
+                                            <p className="text-xs text-muted-foreground font-mono">{eq.serialNumber}</p>
+                                        </div>
+                                        <StatusBadge variant={eq.status} size="sm">{eq.status}</StatusBadge>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+                {/* Request Results */}
+                {searchResultsRequests.length > 0 && (
+                     <Card className="glass-card">
+                        <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Wrench className="h-4 w-4"/> Requests</CardTitle></CardHeader>
+                        <CardContent>
+                            <div className="space-y-2">
+                                {searchResultsRequests.map(req => (
+                                    <div 
+                                        key={req.id} 
+                                        onClick={() => navigate(`/maintenance`)} 
+                                        className="flex justify-between items-center p-3 hover:bg-secondary/50 rounded-lg cursor-pointer transition-colors border border-transparent hover:border-border"
+                                    >
+                                        <div>
+                                            <p className="font-medium text-sm">{req.subject}</p>
+                                            <p className="text-xs text-muted-foreground">{req.equipmentName}</p>
+                                        </div>
+                                        <StatusBadge variant={req.status} size="sm">{req.status}</StatusBadge>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+                {searchResultsEquipment.length === 0 && searchResultsRequests.length === 0 && (
+                    <div className="col-span-1 lg:col-span-2 p-8 text-center text-muted-foreground border border-dashed rounded-xl">
+                        No results found for "{searchQuery}"
+                    </div>
+                )}
+            </div>
+        </section>
+      )}
+
       {/* Quick Actions */}
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Quick Actions</h2>
-        <QuickActions />
-      </section>
+      {!searchQuery && (
+        <section className="space-y-4">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Quick Actions</h2>
+            <QuickActions />
+        </section>
+      )}
 
       {/* Stats Grid */}
       <section className="grid gap-4 grid-cols-2 lg:grid-cols-4 stagger-fade-in">
