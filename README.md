@@ -4,7 +4,6 @@
 
 It bridges the gap between managers, technicians, and employees with a modern, real-time interface.
 
-![Dashboard Preview](public/placeholder.svg)
 
 ## 🚀 Key Features
 
