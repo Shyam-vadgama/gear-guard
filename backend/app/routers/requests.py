@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from .. import crud, models, schemas, database
 from . import auth
+from ..websockets import manager
+import json
 
 router = APIRouter(
     prefix="/requests",
@@ -21,12 +23,8 @@ def create_request(request: schemas.MaintenanceRequestCreate, db: Session = Depe
     return crud.create_request(db=db, request=request, user_id=current_user.id)
 
 @router.put("/{request_id}", response_model=schemas.MaintenanceRequest)
-def update_request(request_id: int, request: schemas.MaintenanceRequestUpdate, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.get_current_user)):
+async def update_request(request_id: int, request: schemas.MaintenanceRequestUpdate, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.get_current_user)):
     # Fetch existing request to check permissions
-    db_request = crud.get_requests(db, user=models.User(role=models.UserRole.manager), limit=1) # Hacky way to get base query? No, let's just query direct.
-    # Actually crud.update_request does a lookup.
-    # Let's check permissions before calling update.
-    
     existing_req = db.query(models.MaintenanceRequest).filter(models.MaintenanceRequest.id == request_id).first()
     if not existing_req:
         raise HTTPException(status_code=404, detail="Request not found")
@@ -42,4 +40,18 @@ def update_request(request_id: int, request: schemas.MaintenanceRequestUpdate, d
         # Allow status/checklist/etc updates
 
     db_request = crud.update_request(db=db, request_id=request_id, request_update=request)
+    
+    # Broadcast update
+    if db_request:
+        await manager.broadcast(json.dumps({
+            "type": "REQUEST_UPDATED",
+            "data": {
+                "id": db_request.id,
+                "status": db_request.status,
+                "subject": db_request.subject,
+                "equipmentName": db_request.equipment.name if db_request.equipment else "Unknown",
+                "assignedTechnicianName": db_request.assigned_technician.full_name if db_request.assigned_technician else None
+            }
+        }))
+
     return db_request

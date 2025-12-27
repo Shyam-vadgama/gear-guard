@@ -1,7 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from .database import engine, Base
 from .routers import auth, users, equipment, requests, password_reset, parts
+from .websockets import manager
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -9,7 +10,6 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 origins = [
-    "http://localhost:8080", # Lovable/Vite default
     "http://localhost:5173", # Vite default
     "http://localhost:3000",
 ]
@@ -32,3 +32,12 @@ app.include_router(password_reset.router, prefix="/api")
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Maintenance App API"}
+
+@app.websocket("/ws/{client_id}")
+async def websocket_endpoint(websocket: WebSocket, client_id: int):
+    await manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)

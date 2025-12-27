@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Equipment, Team, MaintenanceRequest, DashboardStats } from '@/types';
 import { api, setAuthToken, removeAuthToken, getAuthToken, ApiError } from '@/lib/api';
+import { toast } from "sonner";
 
 interface User {
   id: number;
@@ -66,6 +67,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     init();
   }, []);
+
+  useEffect(() => {
+    let socket: WebSocket | null = null;
+
+    if (user) {
+      // Assuming backend runs on localhost:8000
+      const wsUrl = `ws://localhost:8000/ws/${user.id}`;
+      socket = new WebSocket(wsUrl);
+
+      socket.onopen = () => {
+        console.log("Connected to WebSocket");
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          if (message.type === "REQUEST_UPDATED") {
+            const data = message.data;
+            setRequests((prev) =>
+              prev.map((req) =>
+                req.id.toString() === data.id.toString()
+                  ? { ...req, status: data.status, subject: data.subject, equipmentName: data.equipmentName }
+                  : req
+              )
+            );
+            toast.info(`Update: ${data.subject}`, {
+                description: `Status changed to ${data.status.replace('_', ' ')}`
+            });
+            // Refresh full data to get side effects (like stats, or deep nested changes)
+            fetchData(); 
+          }
+        } catch (e) {
+          console.error("Failed to parse WS message", e);
+        }
+      };
+
+      socket.onclose = () => {
+        console.log("Disconnected from WebSocket");
+      };
+    }
+
+    return () => {
+      if (socket) {
+        socket.close();
+      }
+    };
+  }, [user]);
 
   const fetchData = async () => {
     try {
